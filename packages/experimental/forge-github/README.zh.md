@@ -38,7 +38,7 @@ kind: "package-reference"
 
 [forge-session](../forge-session/README.zh.md) 运行期间，插件向其注册 `gh` 命令规则。`gh pr create` 与 `gh pr new` 绑定它们打印的 pull request。`gh pr view`、`gh pr edit` 与 `gh pr checkout` 绑定 URL 选中的 pull request，或前后带有 `--repo`、`--repo=` 或 `-R` 的编号所选中的 pull request；包含主机的仓库参数或字面量 `GH_HOST` 赋值可直接确定 URL，其他仓库参数则在调用所在的 shell 中通过 `gh pr view <number> --repo <repository> --json url --jq .url` 解析。`gh api` 绑定其 REST 路径指向的 pull request，例如 `repos/octo/demo/pulls/7/files`：`--hostname` 或字面量 `GH_HOST` 赋值写明主机时直接绑定，否则通过同样的 `gh pr view` 查询解析，`{owner}/{repo}` 占位符则不带 `--repo`。
 
-当主机在配置中时，提供方服务 `https`、`http`、`ssh`、`git` 形式的远端 URL，以及 `git@github.com:owner/name.git` 这类 scp 形式。HTTP(S) 远端在主机标识中保留自定义端口；SSH 和 Git 传输端口不计入主机标识。它服务 `https://<host>/<owner>/<name>/pull/<number>` 形式的 pull request URL，允许其后附带任意路径、查询或片段，并以去掉这些后缀的形式作为规范 URL。提供方以小写形式在 `hosts` 中列出配置的主机，自称 `GitHub`，并把变更请求称为拉取请求。就绪探测运行 `gh auth status --hostname <host>`：退出码为 0 时为 `ready`，其他退出码为 `unauthenticated`，带第一行诊断，并以 `gh auth login --hostname <host>` 作为登录命令，`gh` 无法启动时为 `unavailable`。按 head 分支查找时，最多返回 20 个以该分支为 head 的打开状态 pull request，按创建时间从新到旧排列，不包含来自 fork 的 pull request；查找默认分支时返回空结果。
+当主机在配置中时，提供方服务 `https`、`http`、`ssh`、`git` 形式的远端 URL，以及 `git@github.com:owner/name.git` 这类 scp 形式。HTTP(S) 远端在主机标识中保留自定义端口；SSH 和 Git 传输端口不计入主机标识。它服务 `https://<host>/<owner>/<name>/pull/<number>` 形式的 pull request URL，允许其后附带任意路径、查询或片段，并以去掉这些后缀的形式作为规范 URL。提供方以小写形式在 `hosts` 中列出配置的主机，自称 `GitHub`，并把变更请求称为拉取请求。就绪探测运行 `gh auth status --hostname <host>`：退出码为 0 时为 `ready`，其他退出码为 `unauthenticated`，带第一行诊断，并以 `gh auth login --hostname <host>` 作为登录命令，`gh` 无法启动时为 `unavailable`，并指出无法运行的可执行文件以及安装它或设置 `ghCommand` 的方式。按 head 分支查找时，最多返回 20 个以该分支为 head 的打开状态 pull request，按创建时间从新到旧排列，不包含来自 fork 的 pull request；查找默认分支时返回空结果。
 
 轮询只返回 head 提交的前 100 条检查上下文，不追读后续页。预览不完整时设置 `checksTruncated` 并保留 GitHub 的汇总状态，局部计数不代表完整列表。`fetchChecks(ref, signal)` 仅按需读取指定 PR 的完整详情，后续页固定使用首次响应的 rollup。所有 JSON 响应（包括评审讨论分页）的 UTF-8 字节总量受 `maxOutputBytes` 限制，超出时返回 `too-large`。分页失败或游标不前进只使此次详情读取失败，保留轮询结果。同一应用、工作流、触发事件与检查名称的运行只保留运行 id 最新的一条；新的排队运行会替代旧的已完成运行。缺少数字数据库 id 的运行无法确定先后，因此按节点 id 保留。提交状态上下文按名称保留最新结果。完整列表从这些结果计算总体指示；未知上下文类型保留 GitHub 的汇总状态。
 
@@ -118,7 +118,7 @@ pull request 处于打开状态、不是草稿、GitHub 报告其合并状态为
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **宿主需要 GitHub CLI**——必须安装 `gh` 并为每个已配置主机登录；环境变量中的令牌不会被转发。不在 `hosts` 中的主机永远不会被读取，包括配置变更后保留的引用。状态读取为这些引用返回 `unavailable`；head 查找会在启动 `gh` 前拒绝。
+- **宿主需要 GitHub CLI**——必须安装 `gh` 并为每个已配置主机登录；环境变量中的令牌不会被转发，从 Finder 启动的应用可能拿到不含 Homebrew `bin` 目录的 `PATH`，此时把 `ghCommand` 设为绝对路径即可保持 `gh` 可用。不在 `hosts` 中的主机永远不会被读取，包括配置变更后保留的引用。状态读取为这些引用返回 `unavailable`；head 查找会在启动 `gh` 前拒绝。
 - **评审讨论上限**——每次状态读取每个 pull request 最多统计、每次评审读取最多读取 `maxReviewThreads` 个评审讨论；超出时 `unresolvedThreads` 只是下限，由 `threadsTruncated` 标出，评审读取的结果标记为 `truncated`。
 - **调用时限**——一个快照查询和它的 pull request 的续页，在 `ctx.forge` 的同一个 `fetchTimeoutMs` 时限内运行；评审讨论很多的 pull request 可能让它所在的查询超过该时限，这时该查询里最多 `snapshotBatchSize` 个 pull request 都报告 `unavailable`，而不只是讨论很多的那个。
 - **简报的检查结果**——简报报告 GitHub 的检查汇总状态，检查列表完整的快照则自行得出结果；同一个 pull request 的两个结果不一致时，没有机制去对齐它们。

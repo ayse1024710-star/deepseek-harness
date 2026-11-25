@@ -42,6 +42,15 @@ export class GhOutputLimitError extends Error {
 }
 
 /**
+ * Explain a `gh` executable the host cannot run, naming both ways to provide it.
+ * @param command - the configured executable name or absolute path.
+ * @returns the diagnostic shown by the forge registry.
+ */
+function missingGhMessage(command: string): string {
+  return `GitHub CLI (gh) is not available: cannot run ${JSON.stringify(command)}. Install it from https://cli.github.com/ and sign in with "gh auth login", or set the forge-github ghCommand setting to its absolute path.`
+}
+
+/**
  * Build a runner for `gh` on the host. The child inherits the scrubbed parent
  * environment, so variables whose names contain KEY, PASSWORD, SECRET, or
  * TOKEN never reach it and `gh` authenticates from its own credential store.
@@ -65,7 +74,11 @@ export function ghRunner(config: GhConfig): GhRunner {
     if (result.timedOut) throw new GhTimeoutError(`${command} timed out after ${config.timeoutMs}ms`)
     if (result.isMaxBuffer) throw new GhOutputLimitError(`${command} output exceeds maxOutputBytes`)
     // A result without an exit code failed before the process ran; execa then always sets shortMessage.
-    if (result.exitCode === undefined) throw new GhUnavailableError(`gh could not start: ${String(result.shortMessage)}`)
+    if (result.exitCode === undefined) {
+      throw new GhUnavailableError(result.code === 'ENOENT'
+        ? missingGhMessage(config.ghCommand)
+        : `gh could not start: ${String(result.shortMessage)}`)
+    }
     return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
   }
 }

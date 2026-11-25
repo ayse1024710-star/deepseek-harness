@@ -87,8 +87,23 @@ describe.skipIf(process.platform === 'win32')('gh runner', () => {
     await expect(result).rejects.toThrow('gh big output exceeds maxOutputBytes')
   })
 
-  it('reports an executable that cannot start', async () => {
-    const run = ghRunner({ ghCommand: join(root, 'missing-gh'), timeoutMs: 5_000, maxOutputBytes: 1_000 })
+  it('explains a missing gh instead of reporting the spawn failure', async () => {
+    const ghCommand = join(root, 'missing-gh')
+    const run = ghRunner({ ghCommand, timeoutMs: 5_000, maxOutputBytes: 1_000 })
+    const result = run([], new AbortController().signal)
+
+    await expect(result).rejects.toBeInstanceOf(GhUnavailableError)
+    await expect(result).rejects.toThrow(
+      `GitHub CLI (gh) is not available: cannot run ${JSON.stringify(ghCommand)}. `
+      + 'Install it from https://cli.github.com/ and sign in with "gh auth login", or set the forge-github ghCommand setting to its absolute path.',
+    )
+  })
+
+  it('reports a gh that cannot start for another reason', async () => {
+    const ghCommand = join(root, 'not-executable')
+    await writeFile(ghCommand, '#!/bin/sh\n')
+    await chmod(ghCommand, 0o644)
+    const run = ghRunner({ ghCommand, timeoutMs: 5_000, maxOutputBytes: 1_000 })
     const result = run([], new AbortController().signal)
 
     await expect(result).rejects.toBeInstanceOf(GhUnavailableError)
